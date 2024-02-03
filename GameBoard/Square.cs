@@ -45,5 +45,17 @@ namespace Checkers.GameBoard
                 throw new InvalidOperationException();
             _piece = null;
         }
+        public CheckerColor GetPieceColor() 
+        {
+            if (IsEmpty())
+                throw new InvalidOperationException();
+            return _piece.GetColor();
+        }
+        public IPiece GetPiece() 
+        {
+            if(IsEmpty())
+                throw new InvalidOperationException();
+            return _piece;
+        }
     }
 }

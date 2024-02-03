@@ -22,7 +22,7 @@ namespace Checkers.GameBoard
         public CheckerColor PieceColor { get; private set; }
         private Square _square;
         private bool _isMoving = false;
-        private bool _isKing = false;
+        public bool IsKing = false;
         private Texture2D _texture;
 
         private Vector2 _squarePosition;
@@ -31,6 +31,8 @@ namespace Checkers.GameBoard
         private float _currentMovingSpeed = _startingMovingSpeed;
         private Random _random;
         private float _startupTime;
+
+        private event Action OnPieceMoved;
 
         private CheckerPiece(CheckerColor color, Square square)
         {
@@ -51,7 +53,13 @@ namespace Checkers.GameBoard
         }
         public void MoveTo(CheckersBoard board, Square square)
         {
-            throw new NotImplementedException();
+            _square.RemovePiece();
+            _square = square;
+
+            _square.AssignPiece(this);
+
+            _squarePosition = board.BoardPositionToWorld(square.BoardPosition);
+            _isMoving = true;
         }
         public override void LoadContent(GraphicsDevice graphicsDevice, ContentManager content) 
         {
@@ -75,7 +83,7 @@ namespace Checkers.GameBoard
             if(IsVisible == false)
                 IsVisible = true;
 
-            if (Math.Abs(_squarePosition.X - Position.X) < 0.5 && Math.Abs(_squarePosition.Y - Position.Y) < 0.5)
+            if (_isMoving && Math.Abs(_squarePosition.X - Position.X) < 0.5f && Math.Abs(_squarePosition.Y - Position.Y) < 0.5f)
             {
                 _isMoving = false;
                 _currentMovingSpeed = _startingMovingSpeed;
@@ -129,6 +137,10 @@ namespace Checkers.GameBoard
             checker._isMoving = true;
             checker.IsVisible = false;
             return checker;
+        }
+        public CheckerColor GetColor() 
+        {
+            return this.PieceColor;
         }
     }
 }

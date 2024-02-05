@@ -20,19 +20,29 @@ namespace Checkers.GameBoard
     internal class CheckerPiece : GameObject, IPiece
     {
         public CheckerColor PieceColor { get; private set; }
+        
         private Square _square;
-        private bool _isMoving = false;
-        public bool IsKing = false;
-        private Texture2D _texture;
-
         private Vector2 _squarePosition;
 
+        public bool IsKing = false;
+
+        private bool _isMoving = false;
         private static readonly float _startingMovingSpeed = 0.001f;
         private float _currentMovingSpeed = _startingMovingSpeed;
+
+        private bool _isDestroying = false;
+
         private Random _random;
         private float _startupTime;
 
-        private event Action OnPieceMoved;
+        public event Action OnPieceMoved;
+        public event EventHandler OnPieceDestroyed;
+
+        private Texture2D _texture;
+        private float _textureOpacity = 1f;
+
+        private SpriteFont _debugFont;
+        private string _debugText = string.Empty;
 
         private CheckerPiece(CheckerColor color, Square square)
         {
@@ -74,30 +84,36 @@ namespace Checkers.GameBoard
                     textureName = "checkerRed";
                     break;
             }
+#if DEBUG
+            _debugFont = content.Load<SpriteFont>("DebugFont");
+#endif
             _texture = content.Load<Texture2D>(textureName);
 
         }
         public override void Update(GameTime gameTime) 
         {
+            if(IsDestroyed) return;
+
+            // i will implement this properly after i make a gameObjectManager of some sort
+            if (_isDestroying)
+            {
+                //_debugText = "opacity: " + _textureOpacity + "\n" + "state: " + IsDestroyed;
+                _textureOpacity = MathHelper.Lerp(_textureOpacity, 0, 0.1f);
+                if (_textureOpacity <= 0.03f)
+                    DestroyCompletely();
+            }
             if (gameTime.TotalGameTime.TotalSeconds < _startupTime) return;
+
             if(IsVisible == false)
                 IsVisible = true;
 
-            if (_isMoving && Math.Abs(_squarePosition.X - Position.X) < 0.5f && Math.Abs(_squarePosition.Y - Position.Y) < 0.5f)
-            {
-                _isMoving = false;
-                _currentMovingSpeed = _startingMovingSpeed;
-                Position = _squarePosition;
-            }
-            else
-            {
-                _isMoving = true;
-            }
-
             if (_isMoving) 
             {
-                Position = Vector2.Lerp(Position, _squarePosition, 0.08f);
+                Position = Vector2.Lerp(Position, _squarePosition, 0.1f);
             }
+            if (_isMoving && _squarePosition == Position)
+                _isMoving = false;
+
         }
         private float EaseOut(float t) 
         {
@@ -112,11 +128,18 @@ namespace Checkers.GameBoard
             if (!IsVisible)
                 return;
             //base.Draw(spriteBatch);
-            Color color = Color.White;
-            if (_isMoving)
-                color = Color.White;
 
-            spriteBatch.Draw(_texture, Position, color);
+            float depth = 0.2f;
+
+            if (_isMoving)
+                depth = 0.3f;
+
+            spriteBatch.Draw(_texture, Position, null, Color.White * _textureOpacity, 0f, Vector2.Zero, 1f, SpriteEffects.None, depth);
+
+            //spriteBatch.Draw(_texture, Position, Color.White);
+#if DEBUG
+            spriteBatch.DrawString(_debugFont, _debugText, Position + new Vector2(0, 16), Color.Red, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.4f);
+#endif
         }
         public static CheckerPiece CreateChecker(CheckerColor color, Square square, CheckersBoard board, Vector2 startingPosition) 
         {
@@ -141,6 +164,17 @@ namespace Checkers.GameBoard
         public CheckerColor GetColor() 
         {
             return this.PieceColor;
+        }
+        public override void Destroy()
+        {
+            _square.RemovePiece();
+            _isDestroying = true;
+        }
+        public void DestroyCompletely() 
+        {
+            OnPieceDestroyed?.Invoke(this, new EventArgs());
+            base.Destroy();
+            _texture = null;
         }
     }
 }

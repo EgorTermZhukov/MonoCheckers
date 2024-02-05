@@ -35,9 +35,11 @@ namespace Checkers.GameBoard
         private Square _selectedSquare;
         private Square _previouslySelectedSquare;
 
-        private Vector2 _origin { get { return Position + new Vector2(0, 8) * SquareSize; } }
+        private string _debugText = String.Empty;
 
-        private bool hasMovedPiece = false;
+        private List<GameObject> _gameObjectsToDestroy = new List<GameObject>();
+
+        private Vector2 _origin { get { return Position + new Vector2(0, 8) * SquareSize; } }
 
         public CheckersBoard(CheckerColor startingPlayer)
         {
@@ -100,6 +102,7 @@ namespace Checkers.GameBoard
                                                     Position.Y + Bounds.Height / 2 - SquareSize / 2);
 
                     CheckerPiece checker = CheckerPiece.CreateChecker(checkerColor, square, this, startingPosition);
+                    checker.OnPieceDestroyed += AddPieceToRemoved;
                     _checkers.Add(checker);
                     square.AssignPiece(checker);
                 }
@@ -124,8 +127,33 @@ namespace Checkers.GameBoard
             foreach (CheckerPiece checker in _checkers)
                 checker.Update(gameTime);
 
+            // gameObjectDestruction manager needed
+            foreach (GameObject obj in _gameObjectsToDestroy) 
+            {
+                if(obj == null) continue;
+                if (!obj.IsDestroyed)
+                    continue;
+                CheckerPiece destroyingPiece = obj as CheckerPiece;
+                if (!_checkers.Contains(destroyingPiece))
+                    continue;
+                _checkers.Remove(destroyingPiece);
+            }
+            _gameObjectsToDestroy.Clear();
+            //
+
             if (gameTime.TotalGameTime.TotalSeconds < 3)
                 return;
+
+            if (GetWhitePiecesCount() == 0) 
+            {
+                _debugText = "REDS WIN";
+                return;
+            }
+            else if (GetRedPiecesCount() == 0) 
+            {
+                _debugText = "WHITES WIN";
+                return;
+            }
 
             if (_previouslySelectedSquare == null)
                 return;
@@ -137,24 +165,10 @@ namespace Checkers.GameBoard
                 return;
 
             CheckerPiece piece = _previouslySelectedSquare.GetPiece() as CheckerPiece;
+
             if (!IsCurrentPlayerPiece(piece))
                 return;
-
-            int differenceY = _previouslySelectedSquare.BoardPosition.Y - _selectedSquare.BoardPosition.Y;
-            int differenceX = _previouslySelectedSquare.BoardPosition.X - _selectedSquare.BoardPosition.X;
-            differenceX = Math.Abs(differenceX);
-
-            if(piece.PieceColor == CheckerColor.White && !piece.IsKing) 
-            {
-                if (differenceY >= 0)
-                    return;
-            }
-            else 
-            {
-                if (differenceY <= 0)
-                    return;
-            }
-            if (differenceX != 1)
+            if (!IsPieceAllowedToMove(piece, _previouslySelectedSquare, _selectedSquare))
                 return;
 
             piece.MoveTo(this, _selectedSquare);
@@ -163,14 +177,6 @@ namespace Checkers.GameBoard
 
             _previouslySelectedSquare = null;
             _selectedSquare = null;
-
-            //if (!hasMovedPiece && gameTime.TotalGameTime.TotalSeconds > 4) 
-            //{
-            //    BoardPosition boardPosition = new(1, 4);
-
-            //    _checkers[12].MoveTo(this, _squares[boardPosition]);
-            //    hasMovedPiece = true;
-            //}
         }
         private void ChangeCurrentPlayer() 
         {
@@ -183,6 +189,104 @@ namespace Checkers.GameBoard
                     CurrentPlayer = CheckerColor.White;
                     break;
             }
+            MovesCount++;
+        }
+        private bool IsPieceAllowedToMove(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
+        {
+            if (!IsMovingDiagonally(piece, pieceSquare, targetSquare))
+                return false;
+            if (IsPieceAbleToJumpOver(piece, pieceSquare, targetSquare))
+                return true;
+            if (!IsPieceAllowedToMoveY(piece, pieceSquare, targetSquare))
+                return false;
+            if (!IsPieceAllowedToMoveX(piece, pieceSquare, targetSquare))
+                return false;
+            return true;
+        }
+        private bool IsMovingDiagonally(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
+        {
+            int differenceX = targetSquare.BoardPosition.X - pieceSquare.BoardPosition.X;
+            int differenceY = targetSquare.BoardPosition.Y - pieceSquare.BoardPosition.Y;
+            if (Math.Abs(differenceX) != Math.Abs(differenceY))
+                return false;
+            return true;
+        }
+        private bool IsPieceAllowedToMoveX(CheckerPiece piece, Square pieceSquare, Square targetSquare)
+        {
+            int differenceX = pieceSquare.BoardPosition.X - targetSquare.BoardPosition.X;
+
+            if (Math.Abs(differenceX) != 1)
+                return false;
+
+            return true;
+        }
+        private bool IsPieceAllowedToMoveY(CheckerPiece piece, Square pieceSquare, Square targetSquare)
+        {
+            int differenceY = pieceSquare.BoardPosition.Y - targetSquare.BoardPosition.Y;
+
+            if (MathF.Abs(differenceY) != 1)
+                return false;
+
+            if (piece.PieceColor == CheckerColor.White)
+            {
+                if (differenceY >= 0)
+                    return false;
+            }
+            else
+            {
+                if (differenceY <= 0)
+                    return false;
+            }
+            return true;
+        }
+        private bool IsPieceAbleToJumpOver(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
+        {
+            BoardPosition pieceBoardPosition = pieceSquare.BoardPosition;
+
+            int differenceX = targetSquare.BoardPosition.X - pieceSquare.BoardPosition.X;
+            int differenceY = targetSquare.BoardPosition.Y - pieceSquare.BoardPosition.Y;
+
+            //_debugText = "diffX: " + differenceX + "\n" + "diffY " + differenceY;
+
+            if (Math.Abs(differenceX) != 2)
+                return false;
+            //if (Math.Abs(differenceY) != 2)
+            //    return false;
+
+            int potentionalPositionX = pieceBoardPosition.X;
+            int potentionalPositionY = pieceBoardPosition.Y;
+
+            if (differenceX > 0)
+                potentionalPositionX++;
+            else
+                potentionalPositionX--;
+            if (differenceY > 0)
+                potentionalPositionY++;
+            else
+                potentionalPositionY--;
+
+            if (potentionalPositionX < 0 || potentionalPositionX > 7)
+                return false;
+            if (potentionalPositionY < 0 || potentionalPositionY > 7)
+                return false;
+
+            BoardPosition potentionalPosition = new(potentionalPositionX, potentionalPositionY);
+            Square potentionalSquare = _squares[potentionalPosition];
+
+            if (potentionalSquare.IsEmpty())
+                return false;
+            if (piece.PieceColor == potentionalSquare.GetPieceColor())
+                return false;
+
+            // this part is in need of change
+            CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
+            pieceToDestroy.Destroy();
+
+            return true;
+        }
+        public bool IsPieceAbleToJumpNew(CheckerPiece piece, Square square) 
+        {
+            throw new NotImplementedException();
         }
         private bool IsCurrentPlayerPiece(CheckerPiece checkerPiece) 
         {
@@ -191,27 +295,21 @@ namespace Checkers.GameBoard
         public override void Draw(SpriteBatch spriteBatch) 
         {
             //base.Draw(spriteBatch);
-            spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), Color.White);
-            spriteBatch.Draw(_boardTexture, Position, Color.White);
+
+            spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0f);
+            spriteBatch.Draw(_boardTexture, Position, null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0.1f);
+
+            //spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), Color.White);
+            //spriteBatch.Draw(_boardTexture, Position, Color.White);
             foreach (CheckerPiece checker in _checkers)
                 checker.Draw(spriteBatch);
             if(_selectedSquare != null) 
             {
-                spriteBatch.Draw(_selectionTexture, BoardPositionToWorld(_selectedSquare.BoardPosition), Color.White);
+                spriteBatch.Draw(_selectionTexture, BoardPositionToWorld(_selectedSquare.BoardPosition), null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 1f);
             }
-        }
-        public Vector2 ConventionalBoardPositionToWorld(string boardPosition) 
-        {
-            if (boardPosition.Length != 2)
-                throw new InvalidOperationException();
 
-            int x = BoardPositionXToUnit(boardPosition.First());
-            int y = BoardPositionYToUnit(boardPosition.Last());
+            spriteBatch.DrawString(_debugFont, _debugText, _origin, Color.White);
 
-            Vector2 origin = Position + new Vector2(0, 7) * SquareSize;
-
-            Vector2 result = origin + new Vector2(x, -y) * SquareSize;
-            return result;
         }
         public Vector2 BoardPositionToWorld(BoardPosition boardPosition) 
         {
@@ -239,6 +337,26 @@ namespace Checkers.GameBoard
             if (tiledY < 0) return false;
             else if (tiledY > 7) return false;
             return true;
+        }
+        public int GetWhitePiecesCount() 
+        {
+            var whiteQuery = from piece in _checkers where piece.PieceColor == CheckerColor.White select piece;
+            return whiteQuery.Count();
+        }
+        public int GetRedPiecesCount() 
+        {
+            var redQuery = from piece in _checkers where piece.PieceColor == CheckerColor.Red select piece;
+            return redQuery.Count();
+        }
+        public void AddPieceToRemoved(object sender, EventArgs e) 
+        {
+            CheckerPiece piece = sender as CheckerPiece;
+
+            if (piece == null)
+                throw new ArgumentNullException();
+            if (!_checkers.Contains(piece))
+                throw new ArgumentException();
+            _gameObjectsToDestroy.Add(piece);
         }
         public BoardPosition WorldPositionToBoard(Vector2 worldPosition) 
         {
@@ -273,6 +391,19 @@ namespace Checkers.GameBoard
             if (digit == startDigit)
                 return 1;
             return digit - startDigit;
+        }
+        public Vector2 ConventionalBoardPositionToWorld(string boardPosition) 
+        {
+            if (boardPosition.Length != 2)
+                throw new InvalidOperationException();
+
+            int x = BoardPositionXToUnit(boardPosition.First());
+            int y = BoardPositionYToUnit(boardPosition.Last());
+
+            Vector2 origin = Position + new Vector2(0, 7) * SquareSize;
+
+            Vector2 result = origin + new Vector2(x, -y) * SquareSize;
+            return result;
         }
     }
 }

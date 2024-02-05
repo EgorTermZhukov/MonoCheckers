@@ -23,6 +23,7 @@ namespace Checkers.Engine
         public Texture2D DebugTexture { get; private set; }
         public Color DebugDrawColor { get; set; } = Color.White;
         public bool IsVisible { get; set; } = true;
+        public bool IsDestroyed { get; private set; } = false;
         //public GameObject(float x, float y, int width, int height)
         //{
         //    _x = x;
@@ -46,7 +47,10 @@ namespace Checkers.Engine
         }
         public virtual void Destroy()
         {
-
+            IsVisible = false;
+            DebugTexture.Dispose();
+            DebugTexture = null;
+            IsDestroyed = true;
         }
     }
 }

@@ -65,7 +65,7 @@ namespace Checkers
 
             GraphicsDevice.Clear(Color.DarkSlateBlue);
 
-            _spriteBatch.Begin(samplerState: SamplerState.PointWrap);
+            _spriteBatch.Begin(samplerState: SamplerState.PointWrap, sortMode:SpriteSortMode.FrontToBack);
 
             _board.Draw(_spriteBatch);
 
@@ -80,7 +80,6 @@ namespace Checkers
             _spriteBatch.Draw(_renderTarget, new Rectangle(0, 0, 860, 640), Color.White);
 
             _spriteBatch.End();
-
 
             base.Draw(gameTime);
         }

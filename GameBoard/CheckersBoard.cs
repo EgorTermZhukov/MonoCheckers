@@ -17,18 +17,24 @@ namespace Checkers.GameBoard
         First,
         Second
     }
+    public enum MoveType 
+    {
+        Normal,
+        Jump
+    }
     internal class CheckersBoard : GameObject
     {
         private BoardPositionEqualityComparer _positionEqualityComparer;
         private Dictionary<BoardPosition, Square> _squares;
         private List<CheckerPiece> _checkers;
+        private Dictionary<CheckerPiece, List<BoardPosition>> _possibleMoves;
         public int SquareSize { get; private set; }
         public CheckerColor CurrentPlayer { get; private set; }
         public int MovesCount { get; private set; }
 
         private Texture2D _boardTexture;
         private Texture2D _mountTexture;
-
+        private Texture2D _moveSelectionTexture;
         private Texture2D _selectionTexture;
         private SpriteFont _debugFont;
 
@@ -57,6 +63,8 @@ namespace Checkers.GameBoard
         {
             SetupSquares();
             SetupCheckers(_squares);
+            _possibleMoves = new Dictionary<CheckerPiece, List<BoardPosition>>();
+            RecalculateMovesForPieces();
         }
 
         private void SetupSquares() 
@@ -113,6 +121,7 @@ namespace Checkers.GameBoard
             base.LoadContent(graphicsDevice, content);
             _boardTexture = content.Load<Texture2D>("boardSquares");
             _mountTexture = content.Load<Texture2D>("mount");
+            _moveSelectionTexture = content.Load<Texture2D>("moveSelection");
             _selectionTexture = content.Load<Texture2D>("selection");
             _debugFont = content.Load<SpriteFont>("DebugFont");
 
@@ -168,17 +177,29 @@ namespace Checkers.GameBoard
 
             if (!IsCurrentPlayerPiece(piece))
                 return;
-            if (!IsPieceAllowedToMove(piece, _previouslySelectedSquare, _selectedSquare))
+            List<BoardPosition> possibleMoves = _possibleMoves[piece];
+            BoardPosition movePosition = _selectedSquare.BoardPosition;
+
+            if (possibleMoves.Count == 0)
+                return;
+
+            bool isMoveLegit = false;
+            foreach(var move in possibleMoves) 
+            {
+                if (move.Equals(movePosition))
+                    isMoveLegit = true;
+            }
+            if (!isMoveLegit)
                 return;
 
             piece.MoveTo(this, _selectedSquare);
 
-            ChangeCurrentPlayer();
+            ChangeTurn();
 
             _previouslySelectedSquare = null;
             _selectedSquare = null;
         }
-        private void ChangeCurrentPlayer() 
+        private void ChangeTurn() 
         {
             switch (CurrentPlayer) 
             {
@@ -189,10 +210,13 @@ namespace Checkers.GameBoard
                     CurrentPlayer = CheckerColor.White;
                     break;
             }
+            RecalculateMovesForPieces();
             MovesCount++;
         }
         private bool IsPieceAllowedToMove(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
         {
+            if (!targetSquare.IsEmpty())
+                return false;
             if (!IsMovingDiagonally(piece, pieceSquare, targetSquare))
                 return false;
             if (IsPieceAbleToJumpOver(piece, pieceSquare, targetSquare))
@@ -207,6 +231,7 @@ namespace Checkers.GameBoard
         {
             int differenceX = targetSquare.BoardPosition.X - pieceSquare.BoardPosition.X;
             int differenceY = targetSquare.BoardPosition.Y - pieceSquare.BoardPosition.Y;
+
             if (Math.Abs(differenceX) != Math.Abs(differenceY))
                 return false;
             return true;
@@ -238,6 +263,41 @@ namespace Checkers.GameBoard
                     return false;
             }
             return true;
+        }
+        private void RecalculateMovesForPieces() 
+        {
+            _possibleMoves.Clear();
+            foreach(CheckerPiece piece in _checkers) 
+            {
+                List<BoardPosition> moves = CalculateMoves(piece);
+                _possibleMoves.Add(piece, moves);
+            }
+        }
+        private List<BoardPosition> CalculateMoves(CheckerPiece piece) 
+        {
+            //check for 3 by 3 area around piece (temporary)
+            BoardPosition piecePosition = piece.GetSquarePosition();
+            List<BoardPosition> moves = new();
+
+            int area = 2;
+
+            for(int y = piecePosition.Y - area; y <= piecePosition.Y + area * 2; y++) 
+            {
+                for(int x = piecePosition.X - area; x <= piecePosition.X + area * 2; x++) 
+                {
+                    if (!IsSquareSelected(x, y))
+                        continue;
+                    if (x == piecePosition.X && y == piecePosition.Y)
+                        continue;
+                    
+                    BoardPosition possibleMovePosition = new(x, y);
+
+                    if (!IsPieceAllowedToMove(piece, _squares[piecePosition], _squares[possibleMovePosition]))
+                        continue;
+                    moves.Add(possibleMovePosition);
+                }
+            }
+            return moves;
         }
         private bool IsPieceAbleToJumpOver(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
         {
@@ -279,14 +339,9 @@ namespace Checkers.GameBoard
                 return false;
 
             // this part is in need of change
-            CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
-            pieceToDestroy.Destroy();
-
+            //CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
+            //pieceToDestroy.Destroy();
             return true;
-        }
-        public bool IsPieceAbleToJumpNew(CheckerPiece piece, Square square) 
-        {
-            throw new NotImplementedException();
         }
         private bool IsCurrentPlayerPiece(CheckerPiece checkerPiece) 
         {
@@ -303,13 +358,22 @@ namespace Checkers.GameBoard
             //spriteBatch.Draw(_boardTexture, Position, Color.White);
             foreach (CheckerPiece checker in _checkers)
                 checker.Draw(spriteBatch);
-            if(_selectedSquare != null) 
+            if (_selectedSquare != null && !_selectedSquare.IsEmpty()) 
             {
-                spriteBatch.Draw(_selectionTexture, BoardPositionToWorld(_selectedSquare.BoardPosition), null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 1f);
+                CheckerPiece piece = _selectedSquare.GetPiece() as CheckerPiece;
+
+                List<BoardPosition> moves = _possibleMoves[piece];
+                if(moves.Count > 0) 
+                {
+                    foreach (BoardPosition move in moves) 
+                    {
+                        spriteBatch.Draw(_moveSelectionTexture, BoardPositionToWorld(move), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.3f);
+                    }
+                }
+
             }
-
+                
             spriteBatch.DrawString(_debugFont, _debugText, _origin, Color.White);
-
         }
         public Vector2 BoardPositionToWorld(BoardPosition boardPosition) 
         {
@@ -395,7 +459,7 @@ namespace Checkers.GameBoard
         public Vector2 ConventionalBoardPositionToWorld(string boardPosition) 
         {
             if (boardPosition.Length != 2)
-                throw new InvalidOperationException();
+                throw new ArgumentOutOfRangeException();
 
             int x = BoardPositionXToUnit(boardPosition.First());
             int y = BoardPositionYToUnit(boardPosition.Last());

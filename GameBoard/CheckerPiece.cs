@@ -35,7 +35,6 @@ namespace Checkers.GameBoard
         private Random _random;
         private float _startupTime;
 
-        public event Action OnPieceMoved;
         public event EventHandler OnPieceDestroyed;
 
         private Texture2D _texture;
@@ -160,6 +159,12 @@ namespace Checkers.GameBoard
             checker._isMoving = true;
             checker.IsVisible = false;
             return checker;
+        }
+        public BoardPosition GetSquarePosition() 
+        {
+            if (_square == null)
+                return null;
+            return _square.BoardPosition;
         }
         public CheckerColor GetColor() 
         {

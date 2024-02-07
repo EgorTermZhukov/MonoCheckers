@@ -5,6 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection.Metadata.Ecma335;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -37,6 +38,7 @@ namespace Checkers.GameBoard
         private float _currentMovingSpeed = _startingMovingSpeed;
 
         private bool _isDestroying = false;
+        private bool _isBecomingKing = false;
 
         private Random _random;
         private float _startupTime;
@@ -49,6 +51,8 @@ namespace Checkers.GameBoard
         private SpriteFont _debugFont;
         private string _debugText = string.Empty;
 
+        private Color _currentDrawColor = Color.White;
+        private float t = 0f;
         private CheckerPiece(CheckerColor color, Square square)
         {
             PieceColor = color;
@@ -74,20 +78,27 @@ namespace Checkers.GameBoard
             _square.AssignPiece(this);
 
             _squarePosition = board.BoardPositionToWorld(square.BoardPosition);
+
+            if (((_boardPosition.Y == 7 && PieceColor == CheckerColor.White) || (_boardPosition.Y == 0 && PieceColor == CheckerColor.Red)) && !IsKing) 
+            {
+                IsKing = true;
+                _isBecomingKing = true;
+            }
+
             _isMoving = true;
         }
-        public List<BoardPosition> CalculatePossibleMoves(CheckersBoard board) 
+        public Dictionary<BoardPosition, MoveType> CalculatePossibleMoves(CheckersBoard board) 
         {
             int maxRange = 2;
             if (IsKing)
                 maxRange = 7;
 
-            List<BoardPosition> possibleMoves = new();
+            Dictionary<BoardPosition, MoveType> possibleMoves = new();
             List<BoardPosition> currentMoves = new();
             List<BoardPosition> visitedDirections = new();
-            List<BoardPosition> jumps = new();
+            List<Vector2> blockedDirections = new();
 
-            for(int r = 1; r < maxRange; r++) 
+            for (int r = 1; r < maxRange; r++) 
             {
                 currentMoves.Add(_boardPosition.TopLeftDiagonal(r));
                 currentMoves.Add(_boardPosition.TopRightDiagonal(r));
@@ -97,44 +108,100 @@ namespace Checkers.GameBoard
                 {
                     if(move == null) 
                         continue;
-                    Square moveSquare = board.Squares[move];
-                    visitedDirections.Add(move);
 
-                    //check into the opposite direction of the thing toward piece
-                    int blockingPieceX = move.X - (move.X - _boardPosition.X);
-                    int blockingPieceY = move.Y - (move.Y - _boardPosition.Y);
-                    if (BoardPosition.IsInBoardRange(blockingPieceY, blockingPieceX) && !board.Squares[new(blockingPieceX, blockingPieceY)].IsEmpty())
+                    int directionX = (move.X - _boardPosition.X);
+                    int directionY = (move.Y - _boardPosition.Y);
+
+                    Vector2 blockedDirection = new Vector2(directionX / Math.Abs(directionX), directionY / Math.Abs(directionY));
+
+                    if (ContainsDirection(blockedDirections, blockedDirection))
                         continue;
 
-                    if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, out BoardPosition possibleJump))
+                    Square moveSquare = board.Squares[move];
+
+                    // if there were two piece in a row in that direction then block it
+
+                    if (!moveSquare.IsEmpty() && !IsAbleToJumpOver(move, board, out BoardPosition blockage)) 
                     {
-                        jumps.Add(possibleJump);
+                        visitedDirections.Add(move);
+                        blockedDirections.Add(blockedDirection);
+                        visitedDirections.Add(blockage);
+                        continue;
                     }
-                    possibleMoves.Add(move);
+                    if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, out BoardPosition jump))
+                    {
+                        possibleMoves.Add(jump, MoveType.Jump);
+                        visitedDirections.Add(move);
+                        visitedDirections.Add(jump);
+                        continue;
+                    }
+                    if (!moveSquare.IsEmpty()) 
+                    {
+                        visitedDirections.Add(move);
+                        continue;
+                    }
+                    if (!IsAllowedToMoveY(move))
+                        continue;
+
+                    possibleMoves.Add(move, MoveType.Normal);
+                    visitedDirections.Add(move);
                 }
+                currentMoves.Clear();
             }
             return possibleMoves;
         }
-        private bool HasTheJump(List<BoardPosition> jumps, BoardPosition possibleJump) 
+        private bool ContainsDirection(List<Vector2> directions, Vector2 dir) 
         {
-            foreach (var jump in jumps)
+            foreach(var direction in directions) 
             {
-                if (possibleJump.Equals(jump))
+                if(direction == dir) return true;
+            }
+            return false;
+        }
+        private bool ContainsMove(List<BoardPosition> moves, BoardPosition boardPosition) 
+        {
+            foreach(BoardPosition move in moves) 
+            {
+                if (move.Equals(boardPosition))
                     return true;
             }
             return false;
         }
-        private bool IsAbleToJumpOver(BoardPosition otherPiecePosition, CheckersBoard board, out BoardPosition newPosition)
+        private bool IsAllowedToMoveY(BoardPosition move)
         {
-            newPosition = null;
-            if (PieceColor == board.Squares[otherPiecePosition].GetPieceColor()) 
-            {
-                return false;
-            }
+            if (IsKing)
+                return true;
 
+            int differenceY = move.Y - _boardPosition.Y;
+
+            if (PieceColor == CheckerColor.White)
+            {
+                if (differenceY <= 0)
+                    return false;
+            }
+            else
+            {
+                if (differenceY >= 0)
+                    return false;
+            }
+            return true;
+        }
+        private bool IsAbleToJumpOver(BoardPosition otherPiecePosition, CheckersBoard board, out BoardPosition jumpPosition)
+        {
             int distanceX = otherPiecePosition.X - _boardPosition.X;
             int distanceY = otherPiecePosition.Y - _boardPosition.Y;
+            jumpPosition = null;
+            int sqBeforeOtherPieceX = otherPiecePosition.X - distanceX / Math.Abs(distanceX);
+            int sqBeforeOtherPieceY = otherPiecePosition.Y - distanceY / Math.Abs(distanceY);
 
+            if(BoardPosition.IsInBoardRange(sqBeforeOtherPieceX, sqBeforeOtherPieceY) && !board.Squares[new(sqBeforeOtherPieceX, sqBeforeOtherPieceY)].IsEmpty())
+            {
+                if (board.Squares[new(sqBeforeOtherPieceX, sqBeforeOtherPieceY)].GetPiece() != this)
+                {
+                    jumpPosition = new(sqBeforeOtherPieceX, sqBeforeOtherPieceY);
+                    return false;
+                }
+            }
             int newPositionX = otherPiecePosition.X + distanceX;
             int newPositionY = otherPiecePosition.Y + distanceY;
 
@@ -142,11 +209,16 @@ namespace Checkers.GameBoard
                 return false;
 
             BoardPosition newPiecePosition = new(newPositionX, newPositionY);
-
+            jumpPosition = newPiecePosition;
+            
             if (!board.Squares[newPiecePosition].IsEmpty())
                 return false;
+            if (PieceColor == board.Squares[otherPiecePosition].GetPieceColor()) 
+            {
+                return false;
+            }
 
-            newPosition = newPiecePosition;
+
 
             return true;
         }
@@ -181,6 +253,13 @@ namespace Checkers.GameBoard
                 if (_textureOpacity <= 0.03f)
                     DestroyCompletely();
             }
+            if (t > 1f)
+                _isBecomingKing = false;
+            if (_isBecomingKing) 
+            {
+                t += 0.1f;
+                _currentDrawColor = Color.Lerp(Color.White, Color.Goldenrod, t);
+            }
             if (gameTime.TotalGameTime.TotalSeconds < _startupTime) return;
 
             if(IsVisible == false)
@@ -213,7 +292,7 @@ namespace Checkers.GameBoard
             if (_isMoving)
                 depth = 0.3f;
 
-            spriteBatch.Draw(_texture, Position, null, Color.White * _textureOpacity, 0f, Vector2.Zero, 1f, SpriteEffects.None, depth);
+            spriteBatch.Draw(_texture, Position, null, _currentDrawColor * _textureOpacity, 0f, Vector2.Zero, 1f, SpriteEffects.None, depth);
 
             //spriteBatch.Draw(_texture, Position, Color.White);
 #if DEBUG

@@ -23,7 +23,7 @@ namespace Checkers.GameBoard
         public static BoardPositionEqualityComparer PositionEqualityComparer { get { return new BoardPositionEqualityComparer(); } }
         public Dictionary<BoardPosition, Square> Squares { get; private set; }
         private List<CheckerPiece> _checkers;
-        private Dictionary<CheckerPiece, List<BoardPosition>> _possibleMoves;
+        private Dictionary<CheckerPiece, Dictionary<BoardPosition, MoveType>> _possibleMoves;
         public int SquareSize { get; private set; }
         public CheckerColor CurrentPlayer { get; private set; }
         public int MovesCount { get; private set; }
@@ -59,7 +59,7 @@ namespace Checkers.GameBoard
         {
             SetupSquares();
             SetupCheckers(Squares);
-            _possibleMoves = new Dictionary<CheckerPiece, List<BoardPosition>>();
+            _possibleMoves = new Dictionary<CheckerPiece, Dictionary<BoardPosition, MoveType>>();
             RecalculateMovesForPieces();
         }
 
@@ -170,7 +170,7 @@ namespace Checkers.GameBoard
 
             if (!IsCurrentPlayerPiece(piece))
                 return;
-            List<BoardPosition> possibleMoves = _possibleMoves[piece];
+            Dictionary<BoardPosition, MoveType> possibleMoves = _possibleMoves[piece];
             BoardPosition movePosition = _selectedSquare.BoardPosition;
 
             if (possibleMoves.Count == 0)
@@ -179,7 +179,7 @@ namespace Checkers.GameBoard
             bool isMoveLegit = false;
             foreach(var move in possibleMoves) 
             {
-                if (move.Equals(movePosition))
+                if (move.Key.Equals(movePosition))
                     isMoveLegit = true;
             }
             if (!isMoveLegit)
@@ -187,8 +187,22 @@ namespace Checkers.GameBoard
 
             piece.MoveTo(this, _selectedSquare);
 
-            IsAJumpOver(piece, _previouslySelectedSquare, _selectedSquare);
+            // IsAJumpOver is a dirty function that deletes the jumped piece
+            if(IsAJumpOver(piece, _previouslySelectedSquare, _selectedSquare)) 
+            {
+                
+                Dictionary<BoardPosition, MoveType> newMovesForTheJumpedPiece = piece.CalculatePossibleMoves(this);
 
+                if(newMovesForTheJumpedPiece.ContainsValue(MoveType.Jump)) 
+                {
+                    foreach(var kvp in _possibleMoves) 
+                    {
+                        _possibleMoves[kvp.Key] = new Dictionary<BoardPosition, MoveType>();
+                    }
+                    _possibleMoves[piece] = newMovesForTheJumpedPiece;
+                    return;
+                }
+            }
             ChangeTurn();
 
             _previouslySelectedSquare = null;
@@ -262,7 +276,7 @@ namespace Checkers.GameBoard
             _possibleMoves.Clear();
             foreach(CheckerPiece piece in _checkers) 
             {
-                List<BoardPosition> moves = CalculateMoves(piece);
+                Dictionary<BoardPosition, MoveType> moves = piece.CalculatePossibleMoves(this);
                 _possibleMoves.Add(piece, moves);
             }
         }
@@ -384,6 +398,7 @@ namespace Checkers.GameBoard
             spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0f);
             spriteBatch.Draw(_boardTexture, Position, null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0.1f);
 
+            spriteBatch.DrawString(_debugFont, _debugText, _origin, Color.White);
             //spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), Color.White);
             //spriteBatch.Draw(_boardTexture, Position, Color.White);
             foreach (CheckerPiece checker in _checkers)
@@ -391,19 +406,19 @@ namespace Checkers.GameBoard
             if (_selectedSquare != null && !_selectedSquare.IsEmpty()) 
             {
                 CheckerPiece piece = _selectedSquare.GetPiece() as CheckerPiece;
+                if (!_possibleMoves.ContainsKey(piece))
+                    return;
 
-                List<BoardPosition> moves = _possibleMoves[piece];
+                Dictionary<BoardPosition, MoveType> moves = _possibleMoves[piece];
                 if(moves.Count > 0) 
                 {
-                    foreach (BoardPosition move in moves) 
+                    foreach (var move in moves) 
                     {
-                        spriteBatch.Draw(_moveSelectionTexture, BoardPositionToWorld(move), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.3f);
+                        spriteBatch.Draw(_moveSelectionTexture, BoardPositionToWorld(move.Key), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.3f);
                     }
                 }
-
             }
                 
-            spriteBatch.DrawString(_debugFont, _debugText, _origin, Color.White);
         }
         public Vector2 BoardPositionToWorld(BoardPosition boardPosition) 
         {

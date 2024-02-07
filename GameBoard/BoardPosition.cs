@@ -80,32 +80,32 @@ namespace Checkers.GameBoard
         }
         public BoardPosition TopLeftDiagonal(int range = 1) 
         {
-            int x = (X - 1) * range;
-            int y = (Y + 1) * range;
+            int x = X - range;
+            int y = Y + range;
             if (!IsInBoardRange(x, y))
                 return null;
             return new BoardPosition(x, y);
         }
         public BoardPosition TopRightDiagonal(int range = 1) 
         {
-            int x = (X + 1) * range;
-            int y = (Y + 1) * range;
+            int x = X + range;
+            int y = Y + range;
             if (!IsInBoardRange(x, y))
                 return null;
             return new BoardPosition(x, y);
         }
         public BoardPosition BottomLeftDiagonal(int range = 1)
         {
-            int x = (X - 1) * range;
-            int y = (Y - 1) * range;
+            int x = X - range;
+            int y = Y - range;
             if (!IsInBoardRange(x, y))
                 return null;
             return new BoardPosition(x, y);
         }
         public BoardPosition BottomRightDiagonal(int range = 1)
         {
-            int x = (X + 1) * range;
-            int y = (Y - 1) * range;
+            int x = X + range;
+            int y = Y - range;
             if (!IsInBoardRange(x, y))
                 return null;
             return new BoardPosition(x, y);

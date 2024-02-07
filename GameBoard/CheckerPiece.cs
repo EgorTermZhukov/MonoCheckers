@@ -16,12 +16,18 @@ namespace Checkers.GameBoard
         White,
         Red
     }
+    public enum MoveType 
+    {
+        Normal,
+        Jump,
+    }
 
     internal class CheckerPiece : GameObject, IPiece
     {
         public CheckerColor PieceColor { get; private set; }
         
         private Square _square;
+        private BoardPosition _boardPosition { get { return GetSquarePosition(); } }
         private Vector2 _squarePosition;
 
         public bool IsKing = false;
@@ -69,6 +75,80 @@ namespace Checkers.GameBoard
 
             _squarePosition = board.BoardPositionToWorld(square.BoardPosition);
             _isMoving = true;
+        }
+        public List<BoardPosition> CalculatePossibleMoves(CheckersBoard board) 
+        {
+            int maxRange = 2;
+            if (IsKing)
+                maxRange = 7;
+
+            List<BoardPosition> possibleMoves = new();
+            List<BoardPosition> currentMoves = new();
+            List<BoardPosition> visitedDirections = new();
+            List<BoardPosition> jumps = new();
+
+            for(int r = 1; r < maxRange; r++) 
+            {
+                currentMoves.Add(_boardPosition.TopLeftDiagonal(r));
+                currentMoves.Add(_boardPosition.TopRightDiagonal(r));
+                currentMoves.Add(_boardPosition.BottomLeftDiagonal(r));
+                currentMoves.Add(_boardPosition.BottomRightDiagonal(r));
+                foreach(BoardPosition move in currentMoves) 
+                {
+                    if(move == null) 
+                        continue;
+                    Square moveSquare = board.Squares[move];
+                    visitedDirections.Add(move);
+
+                    //check into the opposite direction of the thing toward piece
+                    int blockingPieceX = move.X - (move.X - _boardPosition.X);
+                    int blockingPieceY = move.Y - (move.Y - _boardPosition.Y);
+                    if (BoardPosition.IsInBoardRange(blockingPieceY, blockingPieceX) && !board.Squares[new(blockingPieceX, blockingPieceY)].IsEmpty())
+                        continue;
+
+                    if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, out BoardPosition possibleJump))
+                    {
+                        jumps.Add(possibleJump);
+                    }
+                    possibleMoves.Add(move);
+                }
+            }
+            return possibleMoves;
+        }
+        private bool HasTheJump(List<BoardPosition> jumps, BoardPosition possibleJump) 
+        {
+            foreach (var jump in jumps)
+            {
+                if (possibleJump.Equals(jump))
+                    return true;
+            }
+            return false;
+        }
+        private bool IsAbleToJumpOver(BoardPosition otherPiecePosition, CheckersBoard board, out BoardPosition newPosition)
+        {
+            newPosition = null;
+            if (PieceColor == board.Squares[otherPiecePosition].GetPieceColor()) 
+            {
+                return false;
+            }
+
+            int distanceX = otherPiecePosition.X - _boardPosition.X;
+            int distanceY = otherPiecePosition.Y - _boardPosition.Y;
+
+            int newPositionX = otherPiecePosition.X + distanceX;
+            int newPositionY = otherPiecePosition.Y + distanceY;
+
+            if (!BoardPosition.IsInBoardRange(newPositionX, newPositionY))
+                return false;
+
+            BoardPosition newPiecePosition = new(newPositionX, newPositionY);
+
+            if (!board.Squares[newPiecePosition].IsEmpty())
+                return false;
+
+            newPosition = newPiecePosition;
+
+            return true;
         }
         public override void LoadContent(GraphicsDevice graphicsDevice, ContentManager content) 
         {

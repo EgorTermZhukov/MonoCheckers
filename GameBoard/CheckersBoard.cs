@@ -3,6 +3,7 @@ using Checkers.Input;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,15 +18,10 @@ namespace Checkers.GameBoard
         First,
         Second
     }
-    public enum MoveType 
-    {
-        Normal,
-        Jump
-    }
     internal class CheckersBoard : GameObject
     {
-        private BoardPositionEqualityComparer _positionEqualityComparer;
-        private Dictionary<BoardPosition, Square> _squares;
+        public static BoardPositionEqualityComparer PositionEqualityComparer { get { return new BoardPositionEqualityComparer(); } }
+        public Dictionary<BoardPosition, Square> Squares { get; private set; }
         private List<CheckerPiece> _checkers;
         private Dictionary<CheckerPiece, List<BoardPosition>> _possibleMoves;
         public int SquareSize { get; private set; }
@@ -62,15 +58,14 @@ namespace Checkers.GameBoard
         public void Setup() 
         {
             SetupSquares();
-            SetupCheckers(_squares);
+            SetupCheckers(Squares);
             _possibleMoves = new Dictionary<CheckerPiece, List<BoardPosition>>();
             RecalculateMovesForPieces();
         }
 
         private void SetupSquares() 
         {
-            _positionEqualityComparer = new BoardPositionEqualityComparer();
-            _squares = new Dictionary<BoardPosition, Square>(_positionEqualityComparer);
+            Squares = new Dictionary<BoardPosition, Square>(PositionEqualityComparer);
 
             for(int y = 0; y < 8; y++) 
             {
@@ -79,7 +74,7 @@ namespace Checkers.GameBoard
                     BoardPosition boardPosition = new(x, y);
 
                     var square = new Square(this, boardPosition);
-                    _squares.Add(boardPosition, square);
+                    Squares.Add(boardPosition, square);
                 }
             }
         }
@@ -93,9 +88,7 @@ namespace Checkers.GameBoard
                 {
                     // some magic numbers haha...
 
-                    if ((y + 1) % 2 == 0 && (x + 1) % 2 == 0)
-                        continue;
-                    else if ((y + 1) % 2 != 0 && (x + 1) % 2 != 0)
+                    if (!IsInTheDiagonals(x, y))
                         continue;
 
                     if (y == 3 || y == 4)
@@ -194,6 +187,8 @@ namespace Checkers.GameBoard
 
             piece.MoveTo(this, _selectedSquare);
 
+            IsAJumpOver(piece, _previouslySelectedSquare, _selectedSquare);
+
             ChangeTurn();
 
             _previouslySelectedSquare = null;
@@ -215,12 +210,10 @@ namespace Checkers.GameBoard
         }
         private bool IsPieceAllowedToMove(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
         {
-            if (!targetSquare.IsEmpty())
-                return false;
             if (!IsMovingDiagonally(piece, pieceSquare, targetSquare))
                 return false;
-            if (IsPieceAbleToJumpOver(piece, pieceSquare, targetSquare))
-                return true;
+            if (!targetSquare.IsEmpty())
+                return false;
             if (!IsPieceAllowedToMoveY(piece, pieceSquare, targetSquare))
                 return false;
             if (!IsPieceAllowedToMoveX(piece, pieceSquare, targetSquare))
@@ -279,27 +272,46 @@ namespace Checkers.GameBoard
             BoardPosition piecePosition = piece.GetSquarePosition();
             List<BoardPosition> moves = new();
 
-            int area = 2;
+            if (!IsCurrentPlayerPiece(piece))
+                return moves;
+
+            List<BoardPosition> visited = new();
+
+            int area = 1;
 
             for(int y = piecePosition.Y - area; y <= piecePosition.Y + area * 2; y++) 
             {
                 for(int x = piecePosition.X - area; x <= piecePosition.X + area * 2; x++) 
                 {
-                    if (!IsSquareSelected(x, y))
+                    if (!BoardPosition.IsInBoardRange(x, y))
                         continue;
                     if (x == piecePosition.X && y == piecePosition.Y)
                         continue;
                     
                     BoardPosition possibleMovePosition = new(x, y);
 
-                    if (!IsPieceAllowedToMove(piece, _squares[piecePosition], _squares[possibleMovePosition]))
+                    visited.Add(possibleMovePosition);
+
+                    if(!Squares[possibleMovePosition].IsEmpty() && IsPieceAbleToJumpOver(piece.PieceColor, piecePosition, possibleMovePosition)) 
+                    {
+                        int distanceX = possibleMovePosition.X - piecePosition.X;
+                        int distanceY = possibleMovePosition.Y - piecePosition.Y;
+
+                        int newPositionX = possibleMovePosition.X + distanceX;
+                        int newPositionY = possibleMovePosition.Y + distanceY;
+
+                        moves.Add(new(newPositionX, newPositionY));
+
+                        continue;
+                    }
+                    if (!IsPieceAllowedToMove(piece, Squares[piecePosition], Squares[possibleMovePosition]))
                         continue;
                     moves.Add(possibleMovePosition);
                 }
             }
             return moves;
         }
-        private bool IsPieceAbleToJumpOver(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
+        private bool IsAJumpOver(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
         {
             BoardPosition pieceBoardPosition = pieceSquare.BoardPosition;
 
@@ -308,8 +320,6 @@ namespace Checkers.GameBoard
 
             //_debugText = "diffX: " + differenceX + "\n" + "diffY " + differenceY;
 
-            if (Math.Abs(differenceX) != 2)
-                return false;
             //if (Math.Abs(differenceY) != 2)
             //    return false;
 
@@ -331,7 +341,7 @@ namespace Checkers.GameBoard
                 return false;
 
             BoardPosition potentionalPosition = new(potentionalPositionX, potentionalPositionY);
-            Square potentionalSquare = _squares[potentionalPosition];
+            Square potentionalSquare = Squares[potentionalPosition];
 
             if (potentionalSquare.IsEmpty())
                 return false;
@@ -339,11 +349,31 @@ namespace Checkers.GameBoard
                 return false;
 
             // this part is in need of change
-            //CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
-            //pieceToDestroy.Destroy();
+            CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
+            pieceToDestroy.Destroy();
             return true;
         }
-        private bool IsCurrentPlayerPiece(CheckerPiece checkerPiece) 
+        private bool IsPieceAbleToJumpOver(CheckerColor checkerColor, BoardPosition piecePosition, BoardPosition otherPiecePosition) 
+        {
+            if (checkerColor == Squares[otherPiecePosition].GetPieceColor())
+                return false;
+
+            int distanceX = otherPiecePosition.X - piecePosition.X;
+            int distanceY = otherPiecePosition.Y - piecePosition.Y;
+
+            int newPositionX = otherPiecePosition.X + distanceX;
+            int newPositionY = otherPiecePosition.Y + distanceY;
+
+            if (!BoardPosition.IsInBoardRange(newPositionX, newPositionY))
+                return false;
+
+            BoardPosition newPiecePosition = new(newPositionX, newPositionY);
+
+            if (!Squares[newPiecePosition].IsEmpty())
+                return false;
+            return true;
+        }
+        public bool IsCurrentPlayerPiece(CheckerPiece checkerPiece) 
         {
             return CurrentPlayer == checkerPiece.PieceColor;
         }
@@ -392,15 +422,7 @@ namespace Checkers.GameBoard
                 return;
             }
             _previouslySelectedSquare = _selectedSquare;
-            _selectedSquare = _squares[position];
-        }
-        private bool IsSquareSelected(int tiledX, int tiledY) 
-        {
-            if (tiledX < 0) return false;
-            else if (tiledX > 7) return false;
-            if (tiledY < 0) return false;
-            else if (tiledY > 7) return false;
-            return true;
+            _selectedSquare = Squares[position];
         }
         public int GetWhitePiecesCount() 
         {
@@ -422,6 +444,14 @@ namespace Checkers.GameBoard
                 throw new ArgumentException();
             _gameObjectsToDestroy.Add(piece);
         }
+        public static bool IsInTheDiagonals(int x, int y)
+        {
+            if ((y + 1) % 2 == 0 && (x + 1) % 2 == 0)
+                return false;
+            else if ((y + 1) % 2 != 0 && (x + 1) % 2 != 0)
+                return false;
+            return true;
+        }
         public BoardPosition WorldPositionToBoard(Vector2 worldPosition) 
         {
             Vector2 boardSpacePosition = worldPosition - _origin;
@@ -432,7 +462,7 @@ namespace Checkers.GameBoard
             int resultX = tiledX;
             int resultY = tiledY;
 
-            if (!IsSquareSelected(tiledX, tiledY))
+            if (!BoardPosition.IsInBoardRange(tiledX, tiledY))
                 return null;
 
             return new BoardPosition(resultX, resultY);

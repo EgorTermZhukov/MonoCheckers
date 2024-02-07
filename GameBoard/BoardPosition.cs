@@ -62,7 +62,7 @@ namespace Checkers.GameBoard
 
         public bool Equals(BoardPosition other)
         {
-            if (this.ToConventional() == other.ToConventional())
+            if (X == other.X && Y == other.Y)
                 return true;
             return false;
         }
@@ -77,6 +77,46 @@ namespace Checkers.GameBoard
             string result = char.ToString(letter) + char.ToString(digit);
 
             return result;
+        }
+        public BoardPosition TopLeftDiagonal(int range = 1) 
+        {
+            int x = (X - 1) * range;
+            int y = (Y + 1) * range;
+            if (!IsInBoardRange(x, y))
+                return null;
+            return new BoardPosition(x, y);
+        }
+        public BoardPosition TopRightDiagonal(int range = 1) 
+        {
+            int x = (X + 1) * range;
+            int y = (Y + 1) * range;
+            if (!IsInBoardRange(x, y))
+                return null;
+            return new BoardPosition(x, y);
+        }
+        public BoardPosition BottomLeftDiagonal(int range = 1)
+        {
+            int x = (X - 1) * range;
+            int y = (Y - 1) * range;
+            if (!IsInBoardRange(x, y))
+                return null;
+            return new BoardPosition(x, y);
+        }
+        public BoardPosition BottomRightDiagonal(int range = 1)
+        {
+            int x = (X + 1) * range;
+            int y = (Y - 1) * range;
+            if (!IsInBoardRange(x, y))
+                return null;
+            return new BoardPosition(x, y);
+        }
+        public static bool IsInBoardRange(int x, int y) 
+        {
+            if (x < 0) return false;
+            else if (x > 7) return false;
+            if (y < 0) return false;
+            else if (y > 7) return false;
+            return true;
         }
     }
 }

@@ -19,7 +19,6 @@ namespace Checkers.GameBoard
             return obj.X.GetHashCode() ^ obj.Y.GetHashCode();
         }
     }
-
     internal class BoardPosition : IEquatable<BoardPosition>
     {
         private int _x, _y;

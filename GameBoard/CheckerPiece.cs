@@ -94,78 +94,52 @@ namespace Checkers.GameBoard
                 maxRange = 7;
 
             Dictionary<BoardPosition, MoveType> possibleMoves = new();
-            List<BoardPosition> currentMoves = new();
-            List<BoardPosition> visitedDirections = new();
-            List<Vector2> blockedDirections = new();
+            List<Vector2> directions = new();
+            List<BoardPosition> visitedSquares = new();
 
-            for (int r = 1; r < maxRange; r++) 
+            Vector2 topLeft = new Vector2(-1, 1);
+            Vector2 topRight = new Vector2(1, 1);
+            Vector2 bottomLeft = new Vector2(-1, -1);
+            Vector2 bottomRight = new Vector2(1, -1);
+
+            directions.Add(topLeft);
+            directions.Add(topRight);
+            directions.Add(bottomLeft);
+            directions.Add(bottomRight);
+
+            foreach (Vector2 direction in directions) 
             {
-                currentMoves.Add(_boardPosition.TopLeftDiagonal(r));
-                currentMoves.Add(_boardPosition.TopRightDiagonal(r));
-                currentMoves.Add(_boardPosition.BottomLeftDiagonal(r));
-                currentMoves.Add(_boardPosition.BottomRightDiagonal(r));
-                foreach(BoardPosition move in currentMoves) 
+                for (int r = 1; r < maxRange; r++) 
                 {
-                    if(move == null) 
-                        continue;
-
-                    int directionX = (move.X - _boardPosition.X);
-                    int directionY = (move.Y - _boardPosition.Y);
-
-                    Vector2 blockedDirection = new Vector2(directionX / Math.Abs(directionX), directionY / Math.Abs(directionY));
-
-                    if (ContainsDirection(blockedDirections, blockedDirection))
-                        continue;
-
+                    Vector2 rangedDirection = direction * r;
+                    int dirX = _boardPosition.X + (int)rangedDirection.X;
+                    int dirY = _boardPosition.Y + (int)rangedDirection.Y;
+                    if (!BoardPosition.IsInBoardRange(dirX, dirY))
+                        break;
+                    BoardPosition move = new BoardPosition(dirX, dirY);
                     Square moveSquare = board.Squares[move];
-
-                    // if there were two piece in a row in that direction then block it
-
-                    if (!moveSquare.IsEmpty() && !IsAbleToJumpOver(move, board, out BoardPosition blockage)) 
+                    if (!moveSquare.IsEmpty() && !IsAbleToJumpOver(move, board, direction, out BoardPosition blockage)) 
                     {
-                        visitedDirections.Add(move);
-                        blockedDirections.Add(blockedDirection);
-                        visitedDirections.Add(blockage);
-                        continue;
+                        break;
                     }
-                    if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, out BoardPosition jump))
+                    if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, direction, out BoardPosition jump))
                     {
                         possibleMoves.Add(jump, MoveType.Jump);
-                        visitedDirections.Add(move);
-                        visitedDirections.Add(jump);
                         continue;
                     }
                     if (!moveSquare.IsEmpty()) 
                     {
-                        visitedDirections.Add(move);
                         continue;
                     }
                     if (!IsAllowedToMoveY(move))
                         continue;
 
                     possibleMoves.Add(move, MoveType.Normal);
-                    visitedDirections.Add(move);
+                    visitedSquares.Add(move);
                 }
-                currentMoves.Clear();
             }
+            directions.Clear();
             return possibleMoves;
-        }
-        private bool ContainsDirection(List<Vector2> directions, Vector2 dir) 
-        {
-            foreach(var direction in directions) 
-            {
-                if(direction == dir) return true;
-            }
-            return false;
-        }
-        private bool ContainsMove(List<BoardPosition> moves, BoardPosition boardPosition) 
-        {
-            foreach(BoardPosition move in moves) 
-            {
-                if (move.Equals(boardPosition))
-                    return true;
-            }
-            return false;
         }
         private bool IsAllowedToMoveY(BoardPosition move)
         {
@@ -186,7 +160,30 @@ namespace Checkers.GameBoard
             }
             return true;
         }
-        private bool IsAbleToJumpOver(BoardPosition otherPiecePosition, CheckersBoard board, out BoardPosition jumpPosition)
+        private bool IsAbleToJumpOver(BoardPosition otherPiecePosition, CheckersBoard board, Vector2 movementDirection, out BoardPosition landingPosition) 
+        {
+            landingPosition = null;
+
+            if (board.Squares[otherPiecePosition].GetPieceColor() == PieceColor)
+                return false;
+
+            int x = otherPiecePosition.X + (int)movementDirection.X;
+            int y = otherPiecePosition.Y + (int)movementDirection.Y;
+
+            if (!BoardPosition.IsInBoardRange(x, y))
+                return false;
+
+            BoardPosition pieceBehindOther = new(x, y);
+            Square squareBehindOther = board.Squares[pieceBehindOther];
+
+            if (!squareBehindOther.IsEmpty())
+                return false;
+
+
+            landingPosition = new BoardPosition(x, y);
+            return true;
+        }
+        private bool IsAbleToJumpOverOld(BoardPosition otherPiecePosition, CheckersBoard board, out BoardPosition jumpPosition)
         {
             int distanceX = otherPiecePosition.X - _boardPosition.X;
             int distanceY = otherPiecePosition.Y - _boardPosition.Y;
@@ -217,9 +214,6 @@ namespace Checkers.GameBoard
             {
                 return false;
             }
-
-
-
             return true;
         }
         public override void LoadContent(GraphicsDevice graphicsDevice, ContentManager content) 

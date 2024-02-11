@@ -170,36 +170,42 @@ namespace Checkers.GameBoard
 
             if (!IsCurrentPlayerPiece(piece))
                 return;
-            Dictionary<BoardPosition, MoveType> possibleMoves = _possibleMoves[piece];
+            Dictionary<BoardPosition, MoveType> possiblePieceMoves = _possibleMoves[piece];
             BoardPosition movePosition = _selectedSquare.BoardPosition;
 
-            if (possibleMoves.Count == 0)
+            if (possiblePieceMoves.Count == 0)
                 return;
 
-            bool isMoveLegit = false;
-            foreach(var move in possibleMoves) 
-            {
-                if (move.Key.Equals(movePosition))
-                    isMoveLegit = true;
-            }
-            if (!isMoveLegit)
+            if (!possiblePieceMoves.ContainsKey(movePosition))
                 return;
+
+            MoveType moveType = possiblePieceMoves[movePosition];
+
+            if (moveType == MoveType.Jump)
+                DestroyPiecesOnJump(piece.GetSquarePosition(), movePosition);
 
             piece.MoveTo(this, _selectedSquare);
 
-            // IsAJumpOver is a dirty function that deletes the jumped piece
-            if(DestroyPieceOnJumpover(piece, _previouslySelectedSquare, _selectedSquare)) 
-            {
-                
+            // if piece's move was jump recalculate for more possible jumps 
+
+            if(moveType == MoveType.Jump) 
+            { 
                 Dictionary<BoardPosition, MoveType> newMovesForTheJumpedPiece = piece.CalculatePossibleMoves(this);
 
-                if(newMovesForTheJumpedPiece.ContainsValue(MoveType.Jump)) 
+                var onlyJumps = from move in newMovesForTheJumpedPiece.Keys where newMovesForTheJumpedPiece[move] == MoveType.Jump select move; 
+
+                if(onlyJumps.Count() > 0) 
                 {
-                    foreach(var kvp in _possibleMoves) 
+                    //clean all moves for pieces
+                    //assign only jumps to piece things
+                    foreach(var cPiece in _possibleMoves.Keys) 
                     {
-                        _possibleMoves[kvp.Key] = new Dictionary<BoardPosition, MoveType>();
+                        _possibleMoves[cPiece] = new Dictionary<BoardPosition, MoveType>(PositionEqualityComparer);
                     }
-                    _possibleMoves[piece] = newMovesForTheJumpedPiece;
+                    foreach(var move in onlyJumps) 
+                    {
+                        _possibleMoves[piece].Add(move, MoveType.Jump);
+                    }
                     return;
                 }
             }
@@ -231,7 +237,35 @@ namespace Checkers.GameBoard
                 _possibleMoves.Add(piece, moves);
             }
         }
-        private bool DestroyPieceOnJumpover(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
+        private void DestroyPiecesOnJump(BoardPosition piecePosition, BoardPosition landingPosition) 
+        {
+            int movingDirectionX = landingPosition.X - piecePosition.X;
+            int distance = Math.Abs(movingDirectionX);
+            movingDirectionX = movingDirectionX / Math.Abs(movingDirectionX);
+            int movingDirectionY = landingPosition.Y - piecePosition.Y;
+            movingDirectionY = movingDirectionY / Math.Abs(movingDirectionY);
+
+            Vector2 movingDirection = new Vector2(movingDirectionX, movingDirectionY);
+
+            List<CheckerPiece> piecesToDestroy = new List<CheckerPiece>();
+            for(int range = 1; range < distance; range++) 
+            {
+                Vector2 currentMovingDirection = movingDirection * range;
+                int x = piecePosition.X + (int)currentMovingDirection.X;
+                int y = piecePosition.Y + (int)currentMovingDirection.Y;
+
+                BoardPosition currentBoardPosition = new BoardPosition(x, y);
+
+                Square currentSquare = Squares[currentBoardPosition];
+                if (!currentSquare.IsEmpty())
+                    piecesToDestroy.Add(currentSquare.GetPiece() as CheckerPiece);
+            }
+            foreach(var piece in piecesToDestroy) 
+            {
+                piece.Destroy();
+            }
+        }
+        private bool DestroyPieceOnJumpoverOld(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
         {
             BoardPosition pieceBoardPosition = pieceSquare.BoardPosition;
 
@@ -292,6 +326,9 @@ namespace Checkers.GameBoard
             if (_selectedSquare != null && !_selectedSquare.IsEmpty()) 
             {
                 CheckerPiece piece = _selectedSquare.GetPiece() as CheckerPiece;
+                if (piece.PieceColor != CurrentPlayer)
+                    return;
+
                 if (!_possibleMoves.ContainsKey(piece))
                     return;
 
@@ -303,8 +340,7 @@ namespace Checkers.GameBoard
                         spriteBatch.Draw(_moveSelectionTexture, BoardPositionToWorld(move.Key), null, Color.White, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0.3f);
                     }
                 }
-            }
-                
+            }     
         }
         public Vector2 BoardPositionToWorld(BoardPosition boardPosition) 
         {

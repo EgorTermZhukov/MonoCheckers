@@ -93,9 +93,11 @@ namespace Checkers.GameBoard
             if (IsKing)
                 maxRange = 7;
 
-            Dictionary<BoardPosition, MoveType> possibleMoves = new();
+            Dictionary<BoardPosition, MoveType> possibleMoves = new(CheckersBoard.PositionEqualityComparer);
             List<Vector2> directions = new();
             List<BoardPosition> visitedSquares = new();
+
+            MoveType moveType;
 
             Vector2 topLeft = new Vector2(-1, 1);
             Vector2 topRight = new Vector2(1, 1);
@@ -109,6 +111,7 @@ namespace Checkers.GameBoard
 
             foreach (Vector2 direction in directions) 
             {
+                moveType = MoveType.Normal;
                 for (int r = 1; r < maxRange; r++) 
                 {
                     Vector2 rangedDirection = direction * r;
@@ -124,7 +127,9 @@ namespace Checkers.GameBoard
                     }
                     if (!moveSquare.IsEmpty() && IsAbleToJumpOver(move, board, direction, out BoardPosition jump))
                     {
-                        possibleMoves.Add(jump, MoveType.Jump);
+                        //every other move in that direction counts as a jump
+                        moveType = MoveType.Jump;
+                        possibleMoves.Add(jump, moveType);
                         continue;
                     }
                     if (!moveSquare.IsEmpty()) 
@@ -134,7 +139,9 @@ namespace Checkers.GameBoard
                     if (!IsAllowedToMoveY(move))
                         continue;
 
-                    possibleMoves.Add(move, MoveType.Normal);
+                    if (possibleMoves.ContainsKey(move))
+                        continue;
+                    possibleMoves.Add(move, moveType);
                     visitedSquares.Add(move);
                 }
             }
@@ -178,7 +185,6 @@ namespace Checkers.GameBoard
 
             if (!squareBehindOther.IsEmpty())
                 return false;
-
 
             landingPosition = new BoardPosition(x, y);
             return true;
@@ -328,7 +334,7 @@ namespace Checkers.GameBoard
             _square.RemovePiece();
             _isDestroying = true;
         }
-        public void DestroyCompletely() 
+        private void DestroyCompletely() 
         {
             OnPieceDestroyed?.Invoke(this, new EventArgs());
             base.Destroy();

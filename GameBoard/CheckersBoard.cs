@@ -41,7 +41,7 @@ namespace Checkers.GameBoard
 
         private List<GameObject> _gameObjectsToDestroy = new List<GameObject>();
 
-        private Vector2 _origin { get { return Position + new Vector2(0, 8) * SquareSize; } }
+        public Vector2 Origin { get { return Position + new Vector2(0, 8) * SquareSize; } }
 
         public CheckersBoard(CheckerColor startingPlayer)
         {
@@ -197,7 +197,7 @@ namespace Checkers.GameBoard
                 if(onlyJumps.Count() > 0) 
                 {
                     //clean all moves for pieces
-                    //assign only jumps to piece things
+                    //assign only jumps to the piece's available moves
                     foreach(var cPiece in _possibleMoves.Keys) 
                     {
                         _possibleMoves[cPiece] = new Dictionary<BoardPosition, MoveType>(PositionEqualityComparer);
@@ -265,48 +265,6 @@ namespace Checkers.GameBoard
                 piece.Destroy();
             }
         }
-        private bool DestroyPieceOnJumpoverOld(CheckerPiece piece, Square pieceSquare, Square targetSquare) 
-        {
-            BoardPosition pieceBoardPosition = pieceSquare.BoardPosition;
-
-            int differenceX = targetSquare.BoardPosition.X - pieceSquare.BoardPosition.X;
-            int differenceY = targetSquare.BoardPosition.Y - pieceSquare.BoardPosition.Y;
-
-            //_debugText = "diffX: " + differenceX + "\n" + "diffY " + differenceY;
-
-            //if (Math.Abs(differenceY) != 2)
-            //    return false;
-
-            int potentionalPositionX = pieceBoardPosition.X;
-            int potentionalPositionY = pieceBoardPosition.Y;
-
-            if (differenceX > 0)
-                potentionalPositionX++;
-            else
-                potentionalPositionX--;
-            if (differenceY > 0)
-                potentionalPositionY++;
-            else
-                potentionalPositionY--;
-
-            if (potentionalPositionX < 0 || potentionalPositionX > 7)
-                return false;
-            if (potentionalPositionY < 0 || potentionalPositionY > 7)
-                return false;
-
-            BoardPosition potentionalPosition = new(potentionalPositionX, potentionalPositionY);
-            Square potentionalSquare = Squares[potentionalPosition];
-
-            if (potentionalSquare.IsEmpty())
-                return false;
-            if (piece.PieceColor == potentionalSquare.GetPieceColor())
-                return false;
-
-            // this part is in need of change
-            CheckerPiece pieceToDestroy = potentionalSquare.GetPiece() as CheckerPiece;
-            pieceToDestroy.Destroy();
-            return true;
-        }
         public bool IsCurrentPlayerPiece(CheckerPiece checkerPiece) 
         {
             return CurrentPlayer == checkerPiece.PieceColor;
@@ -318,7 +276,7 @@ namespace Checkers.GameBoard
             spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0f);
             spriteBatch.Draw(_boardTexture, Position, null, Color.White, 0f, new Vector2(0, 0), 1f, SpriteEffects.None, 0.1f);
 
-            spriteBatch.DrawString(_debugFont, _debugText, _origin, Color.White);
+            spriteBatch.DrawString(_debugFont, _debugText, Origin, Color.White);
             //spriteBatch.Draw(_mountTexture, Position - new Vector2(3, 9), Color.White);
             //spriteBatch.Draw(_boardTexture, Position, Color.White);
             foreach (CheckerPiece checker in _checkers)
@@ -347,7 +305,7 @@ namespace Checkers.GameBoard
             int x = boardPosition.X;
             int y = boardPosition.Y;
 
-            Vector2 result = _origin + new Vector2(x, -y) * SquareSize - new Vector2(0, 16);
+            Vector2 result = Origin + new Vector2(x, -y) * SquareSize - new Vector2(0, 16);
             return result;
         }
         public void AssignSelectedSquare(object mouse, MouseInputEventArgs args) 
@@ -391,7 +349,7 @@ namespace Checkers.GameBoard
         }
         public BoardPosition WorldPositionToBoard(Vector2 worldPosition) 
         {
-            Vector2 boardSpacePosition = worldPosition - _origin;
+            Vector2 boardSpacePosition = worldPosition - Origin;
 
             int tiledX = (int) boardSpacePosition.X / SquareSize;
             int tiledY = (int) -boardSpacePosition.Y / SquareSize;

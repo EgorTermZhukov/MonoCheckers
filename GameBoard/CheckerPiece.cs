@@ -89,9 +89,7 @@ namespace Checkers.GameBoard
         }
         public Dictionary<BoardPosition, MoveType> CalculatePossibleMoves(CheckersBoard board) 
         {
-            int maxRange = 2;
-            if (IsKing)
-                maxRange = 7;
+            int maxRange = IsKing ? 7 : 2;
 
             Dictionary<BoardPosition, MoveType> possibleMoves = new(CheckersBoard.PositionEqualityComparer);
             List<Vector2> directions = new();
@@ -103,7 +101,7 @@ namespace Checkers.GameBoard
             Vector2 topRight = new Vector2(1, 1);
             Vector2 bottomLeft = new Vector2(-1, -1);
             Vector2 bottomRight = new Vector2(1, -1);
-
+            
             directions.Add(topLeft);
             directions.Add(topRight);
             directions.Add(bottomLeft);
@@ -134,6 +132,7 @@ namespace Checkers.GameBoard
                     }
                     if (!moveSquare.IsEmpty()) 
                     {
+                        //should be break perhaps and also this block might be useless because of the other two
                         continue;
                     }
                     if (!IsAllowedToMoveY(move))
@@ -153,16 +152,16 @@ namespace Checkers.GameBoard
             if (IsKing)
                 return true;
 
-            int differenceY = move.Y - _boardPosition.Y;
+            int distanceY = move.Y - _boardPosition.Y;
 
             if (PieceColor == CheckerColor.White)
             {
-                if (differenceY <= 0)
+                if (distanceY <= 0)
                     return false;
             }
             else
             {
-                if (differenceY >= 0)
+                if (distanceY >= 0)
                     return false;
             }
             return true;
@@ -255,6 +254,7 @@ namespace Checkers.GameBoard
             }
             if (t > 1f)
                 _isBecomingKing = false;
+
             if (_isBecomingKing) 
             {
                 t += 0.1f;
@@ -327,7 +327,7 @@ namespace Checkers.GameBoard
         }
         public CheckerColor GetColor() 
         {
-            return this.PieceColor;
+            return PieceColor;
         }
         public override void Destroy()
         {

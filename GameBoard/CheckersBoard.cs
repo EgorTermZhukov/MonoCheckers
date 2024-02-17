@@ -43,13 +43,17 @@ namespace Checkers.GameBoard
 
         public Vector2 Origin { get { return Position + new Vector2(0, 8) * SquareSize; } }
 
-        public CheckersBoard(CheckerColor startingPlayer)
+        public CheckersBoard(CheckerColor startingPlayer, RenderTarget2D renderTarget)
         {
             CurrentPlayer = startingPlayer;
             MovesCount = 0;
             SquareSize = 16;
-            Position = new Vector2 (128, 128);
-            Bounds = new Rectangle(128, 128, 8 * 16, 8 * 16);
+
+            int screenWidth = renderTarget.Width;
+            int screenHeight = renderTarget.Height;
+
+            Position = new Vector2 (screenWidth / 2 - 110, screenHeight / 2);
+            Bounds = new Rectangle((int)Position.X, (int)Position.Y, 8 * 16, 8 * 16);
         }
         public void Init(MouseInput mouseInput) 
         {

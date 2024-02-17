@@ -20,14 +20,11 @@ namespace Checkers
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
-            _board = new CheckersBoard(CheckerColor.White);
             _mouseInput = new MouseInput();
         }
 
         protected override void Initialize()
         {
-            _board.Init(_mouseInput);
-            _board.Setup();
 
             _graphics.PreferredBackBufferHeight = 860;
             _graphics.PreferredBackBufferWidth = 640;
@@ -38,6 +35,10 @@ namespace Checkers
 
             _renderTarget = new RenderTarget2D(GraphicsDevice, 430, 320);
 
+            _board = new CheckersBoard(CheckerColor.White, _renderTarget);
+            _board.Init(_mouseInput);
+            _board.Setup();
+            
             base.Initialize();
         }
 
